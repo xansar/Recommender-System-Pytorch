@@ -22,6 +22,7 @@ class Dataset:
         return self
 
     def train_valid_test_split(self, train_size=0.8, valid_size=0.1, test_size=0.1):
+        # self.data是numpy数组，max函数返回列最大值，转成整型并加1,然后抛弃最后一列（因为最后一列是label）
         field_dims = (self.data.max(axis=0).astype(int) + 1).tolist()[:-1]
 
         train, valid_test = train_test_split(self.data, train_size=train_size, random_state=2021)
@@ -30,7 +31,7 @@ class Dataset:
         valid, test = train_test_split(valid_test, train_size=valid_size, random_state=2021)
 
         device = self.device
-
+        # 最后一列是label
         train_X = torch.tensor(train[:, :-1], dtype=torch.long).to(device)
         valid_X = torch.tensor(valid[:, :-1], dtype=torch.long).to(device)
         test_X = torch.tensor(test[:, :-1], dtype=torch.long).to(device)
@@ -85,15 +86,19 @@ class MovieLensDataset(Dataset):
             'rating': np.float16,
         }
         if read_part:
+            # nrows是负责一次性读取多少行的参数，否则会一次性读取
+            # readpart意思就是读取部分
             data_df = pd.read_csv(file, sep=',', dtype=dtype, nrows=sample_num)
         else:
             data_df = pd.read_csv(file, sep=',', dtype=dtype)
+        # 这里没用时间戳，如果是考虑序列依赖的话还是很有必要加进去的
         data_df = data_df.drop(columns=['timestamp'])
 
         if task == 'classification':
+            # 这里相当于是把大于3分的都看作推荐，把评分改成0-1，用来分类
             data_df['rating'] = data_df.apply(lambda x: 1 if x['rating'] > 3 else 0, axis=1).astype(np.int8)
 
-        self.data = data_df.values
+        self.data = data_df.values  # 保存为numpy数组
 
 
 class AmazonBooksDataset(Dataset):
@@ -173,7 +178,7 @@ class EarlyStopper:
         self.model = model
 
     def is_continuable(self, metric):
-        # maximize metric
+        # maximize metric_dict
         if metric > self.best_metric:
             self.best_metric = metric
             self.trial_counter = 0
