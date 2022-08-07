@@ -43,6 +43,7 @@ class Trainer:
             else:
                 pred = self.model(batch_data)
                 loss = self.loss_func(pred, batch_data[0].coalesce().values())
+
             return pred, loss
 
         if mode == 'train':

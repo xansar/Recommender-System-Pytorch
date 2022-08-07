@@ -6,12 +6,29 @@ import torch.utils.data
 
 from collections import Counter
 
-class Metric:
-    def __init__(self, k=(1, 2, 3)):
-        self.k = k
-        self._init_metric()
 
-    def _init_metric(self):
+class BaseMetric:
+    def __init__(self):
+        self.init_metric()
+        self.metric_dict = dict()
+
+    def init_metric(self, **metric):
+        pass
+
+    def compute_metric(self, *input_):
+        pass
+
+    def get_batch_metric(self, *input_):
+        pass
+
+
+class Metric(BaseMetric):
+    def __init__(self, k=(1, 2, 3)):
+        super(Metric, self).__init__()
+        self.k = k
+        self.init_metric()
+
+    def init_metric(self):
         hit = dict()
         gini_index = dict()
         diversity = dict()
@@ -149,8 +166,9 @@ class Metric:
         self._MRR(label, pred)
 
 
-class CTRMetric:
+class CTRMetric(BaseMetric):
     def __init__(self):
+        super(CTRMetric, self).__init__()
         self.metric_dict = dict()
         self.init_metric()
 
@@ -214,6 +232,7 @@ def metric_test():
     print(pred)
     metric.compute_metric(label, pred, 3, 3)
     print(metric.metric_dict)
+
 
 def ctr_metric_test():
     pred = torch.tensor(
