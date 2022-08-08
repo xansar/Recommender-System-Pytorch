@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torch.nn as nn
 import os
 
 
@@ -12,6 +13,14 @@ class Logger:
 
     def __str__(self):
         pass
+
+
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.kaiming_normal_(m.weight.data)
+        nn.init.zeros_(m.bias.data)
+    elif isinstance(m, nn.Embedding):
+        nn.init.kaiming_normal_(m.weight.data)
 
 
 def read_and_split_data(pth, read_part=False, sample_number=100000, size=None, random_state=2022):
@@ -58,5 +67,3 @@ def read_and_split_data(pth, read_part=False, sample_number=100000, size=None, r
     train_df.to_csv(train_save_pth, sep='\t')
     valid_df.to_csv(valid_save_pth, sep='\t')
     test_df.to_csv(test_save_pth, sep='\t')
-
-

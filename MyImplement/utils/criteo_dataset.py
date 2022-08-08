@@ -54,6 +54,10 @@ class CriteoDataset(Dataset):
         # 应该只利用训练集上的监督信息对其进行编码，所以需要在预处理前先划分好三个数据集
         one_hot_columns = [f'C_{i}' for i in [6, 9, 14, 17, 20, 22, 23]]
         target_columns = [f'C_{i}' for i in range(1, 27) if i not in [6, 9, 14, 17, 20, 22, 23]]
+        tmp = self.data_df[one_hot_columns]
+        self.data_df.drop(columns=one_hot_columns, inplace=True)
+        self.data_df = pd.concat([self.data_df, tmp], axis=1)
+
         if self.encoders is None:
             # 数值型特征使用均值填充
             mean_fillna = dict()
