@@ -37,7 +37,7 @@ class MovieLensDatasetWithTorch(Dataset):
         self.user_item_matrix = torch.sparse_coo_tensor(i, v, (self.user_num, self.item_num), dtype=torch.float32)
 
     def __getitem__(self, index):
-        return [self.user_item_matrix[index]]
+        return [index, self.user_item_matrix[index]]
 
     def __len__(self):
         return self.user_item_matrix.shape[0]

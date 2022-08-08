@@ -30,46 +30,69 @@ class Trainer:
             self.loss_func = self.loss_func.to(self.config['DEVICE'])
             self.config['DEVICE'] = device
 
-    def step(self, batch_data, mode='train'):
+    def step(self, batch_data, mode='train', **param_for_rec):
         device = self.config['DEVICE']
 
-        def compute_pred(batch_data):
-            if len(batch_data) > 1:
+        def compute_pred():
+            if type(batch_data) == tuple:
                 batch_y = batch_data[0].unsqueeze(1).to(device)
                 batch_x = batch_data[1].to(device)
 
                 pred = self.model(batch_x)
                 loss = self.loss_func(pred, batch_y)
-            else:
+            elif type(batch_data) == list:
                 pred = self.model(batch_data)
-                loss = self.loss_func(pred, batch_data[0].coalesce().values())
+                loss = self.loss_func(pred, batch_data[1].coalesce().values())
 
-            return pred, loss
+            return loss, pred
 
         if mode == 'train':
             self.model.train()
             self.optimizer.zero_grad()
-            pred, loss = compute_pred(batch_data)
+            loss, pred = compute_pred()
             loss.backward()
             self.optimizer.step()
             return loss.item(), pred
         elif mode == 'evaluate':
             with torch.no_grad():
                 self.model.eval()
-                pred, loss = compute_pred(batch_data)
-                self.metric.compute_metric(pred, batch_data[0])
-                return loss.item(), pred
+                loss, pred = compute_pred()
+                if self.config['TASK'] == 'classification':
+                    self.metric.compute_metric(pred, batch_data[0])
+                elif self.config['TASK'] == 'recommend':
+                    gt_rec_lst = param_for_rec['gt_rec_lst']
+                    pred_rec_lst = param_for_rec['pred_rec_lst']
+
+                    user_idx_lst = batch_data[0]
+                    sparse_indices = batch_data[1].coalesce().indices()
+                    for i in range(len(user_idx_lst)):
+                        tmp_idx = torch.nonzero(sparse_indices[0, :] == i).view(-1)
+                        gt_rec_lst.append(sparse_indices[1, tmp_idx].tolist())
+                    pred_rec_lst.extend(self.model.rec(user_idx_lst)[1].tolist())
+                return loss.item(), pred, gt_rec_lst, pred_rec_lst
         else:
             raise ValueError("Wrong Mode")
 
-    def _compute_metric(self, metric_str):
-        self.metric.get_batch_metric()
-        for k, v in self.metric.metric_dict.items():
-            if k == 'cnt':
-                continue
-            metric_str += f'{k}: {v:4f}\n'
-        self.metric.init_metric()
-        return metric_str
+    def _compute_metric(self, metric_str, **param_for_rec):
+        if self.config['TASK'] == 'classification':
+            self.metric.get_batch_metric()
+            for k, v in self.metric.metric_dict.items():
+                if k == 'cnt':
+                    continue
+                metric_str += f'{k}: {v:4f}\n'
+            self.metric.init_metric()
+            return metric_str
+        elif self.config['TASK'] == 'recommend':
+            gt_rec_lst = param_for_rec['gt_rec_lst']
+            pred_rec_lst = param_for_rec['pred_rec_lst']
+            self.metric.compute_metric(gt_rec_lst, pred_rec_lst, self.config['ITEM_NUM'], self.config['USER_NUM'])
+
+            metric_string = ""
+            for m in self.metric.metric_dict.keys():
+                metric_string += m + ':\n'
+                for small_m in self.metric.metric_dict[m].keys():
+                    metric_string += '\t' + small_m + f': {self.metric.metric_dict[m][small_m]:.4f}' + '\n'
+            return metric_string
 
     def train(self):
         print("=" * 10 + "TRAIN BEGIN" + "=" * 10)
@@ -85,24 +108,38 @@ class Trainer:
             if e % 1 == 0:
                 all_loss = 0.0
                 self.metric.init_metric()
+                gt_rec_lst = []
+                pred_rec_lst = []
                 for s, batch_data in enumerate(tqdm(self.valid_loader)):
-                    loss, pred = self.step(batch_data, mode='evaluate')
+                    res = self.step(batch_data, mode='evaluate', gt_rec_lst=gt_rec_lst, pred_rec_lst=pred_rec_lst)
+                    if len(res) == 2:
+                        loss, pred = res
+                    elif len(res) == 4:
+                        loss, pred, gt_rec_lst, pred_rec_lst = res
                     all_loss += loss
 
                 all_loss /= s + 1
                 metric_str = f'loss: {all_loss}\n'
-                metric_str = self._compute_metric(metric_str)
+
+                metric_str = self._compute_metric(metric_str, gt_rec_lst=gt_rec_lst, pred_rec_lst=pred_rec_lst)
+
                 print(f'Valid Epoch: {e}\n' + metric_str)
         print("=" * 10 + "TRAIN END" + "=" * 10)
 
     def test(self):
         all_loss = 0.0
         self.metric.init_metric()
+        gt_rec_lst = []
+        pred_rec_lst = []
         for s, batch_data in enumerate(tqdm(self.test_loader)):
-            loss, pred = self.step(batch_data, mode='evaluate')
+            res = self.step(batch_data, mode='evaluate', gt_rec_lst=gt_rec_lst, pred_rec_lst=pred_rec_lst)
+            if len(res) == 2:
+                loss, pred = res
+            elif len(res) == 4:
+                loss, pred, gt_rec_lst, pred_rec_lst = res
             all_loss += loss
 
         all_loss /= s + 1
         metric_str = f'loss: {all_loss}\n'
-        metric_str = self._compute_metric(metric_str)
+        metric_str = self._compute_metric(metric_str, gt_rec_lst=gt_rec_lst, pred_rec_lst=pred_rec_lst)
         print(f'Test Loss: {all_loss}\n' + metric_str)

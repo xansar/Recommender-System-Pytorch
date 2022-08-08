@@ -13,7 +13,7 @@ class BaseMetric:
         self.metric_dict = dict()
 
     def init_metric(self, **metric):
-        pass
+        self.metric_dict = dict()
 
     def compute_metric(self, *input_):
         pass
@@ -24,8 +24,8 @@ class BaseMetric:
 
 class Metric(BaseMetric):
     def __init__(self, k=(1, 2, 3)):
-        super(Metric, self).__init__()
         self.k = k
+        super(Metric, self).__init__()
         self.init_metric()
 
     def init_metric(self):
@@ -103,13 +103,16 @@ class Metric(BaseMetric):
             self.metric_dict['diversity'][f'diversity@{_k}'] = H_ij / (n * (n - 1) / 2)
 
     def _create_implict_matrix(self, label, n_items, n_users):
-        assert len(label) == n_users
+        # print(len(label), n_users)
+        n_users = len(label)
+        # assert len(label) == n_users
         rel_matrix = [[0] * n_items for _ in range(n_users)]
         for i in range(n_users):
             for j in label[i]:
                 # print(f'i:{i},j:{j}')
                 rel_matrix[i][j - 1] = 1
         self.rel_matrix = np.array(rel_matrix)
+
 
     def _nDCG(self, label, pred):
         if type(pred) is not np.ndarray:
@@ -147,17 +150,10 @@ class Metric(BaseMetric):
             MRR /= n
             self.metric_dict['MRR'][f'MRR@{_k}'] = MRR
 
-    def __str__(self):
-        metric_string = ""
-        for m in self.metric_dict.keys():
-            metric_string += m + ':\n'
-            for small_m in self.metric_dict[m].keys():
-                metric_string += '\t' + small_m + f': {self.metric_dict[m][small_m]:.4f}' + '\n'
-        return metric_string
-
     def compute_metric(self, label, pred, n_items, n_users):
         # 目前在整体pred上计算
         assert len(label) == len(pred)
+        pred = np.array(pred)
         self._create_implict_matrix(label, n_items, n_users)
         self._hit(label, pred)
         self._gini_index(label, pred)
@@ -223,11 +219,11 @@ def metric_test():
         [],
         [1, 3, 2]
     ]
-    pred = np.array([
+    pred = [
         [3, 2, 1],
         [2, 1, 3],
         [1, 3, 2]
-    ])
+    ]
     # pred = np.random.randint(1, 11, (5, 50))
     print(pred)
     metric.compute_metric(label, pred, 3, 3)
